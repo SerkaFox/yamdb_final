@@ -1,3 +1,11 @@
+from api.v1.filters import TitleFilter
+from api.v1.permissions import (AdministratorOrReadOnly, AuthorOrReadOnly,
+                                IsAdministrator, IsModerator)
+from api.v1.serializers import (CategorySerializer, CommentSerializer,
+                                GenreSerializer, ReviewSerializer,
+                                SignupSerializer, TitleReadSerializer,
+                                TitleWriteSerializer, TokenSerializer,
+                                UserSerializer)
 from django.db.models import Avg
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -8,14 +16,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from reviews.models import Category, Genre, Review, Title, User
-from api.v1.filters import TitleFilter
-from api.v1.permissions import (AdministratorOrReadOnly, AuthorOrReadOnly,
-                                IsAdministrator, IsModerator)
-from api.v1.serializers import (CategorySerializer, CommentSerializer,
-                                GenreSerializer, ReviewSerializer,
-                                SignupSerializer, TitleReadSerializer,
-                                TitleWriteSerializer, TokenSerializer,
-                                UserSerializer)
 
 
 class CreateListDeleteViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
