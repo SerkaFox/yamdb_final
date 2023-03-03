@@ -149,10 +149,9 @@ class SignupSerializer(serializers.Serializer):
             obj2 = None
         if obj1 == obj2:
             return data
-        else:
-            raise serializers.ValidationError(
-                'Сочетание имени пользователя и пароля содержит ошибку!'
-            )
+        raise serializers.ValidationError(
+            'Сочетание имени пользователя и пароля содержит ошибку!'
+        )
 
     def create(self, validated_data):
         user, created = User.objects.get_or_create(
@@ -188,13 +187,12 @@ class TokenSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 'Код подтверждения неверен!'
             )
-        else:
-            user.is_active = True
-            user.confirmation_code = None
-            user.save()
-            token = user.get_token()
-            self.validated_data['token'] = token
-            return self.validated_data
+        user.is_active = True
+        user.confirmation_code = None
+        user.save()
+        token = user.get_token()
+        self.validated_data['token'] = token
+        return self.validated_data
 
 
 class UserSerializer(serializers.ModelSerializer):
