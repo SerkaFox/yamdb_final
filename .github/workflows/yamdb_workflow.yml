@@ -48,94 +48,30 @@ jobs:
           tags: ${{ secrets.DOCKER_USERNAME }}/yamdb_final:latest
 
 
-  deploy:
-   runs-on: ubuntu-latest
-   needs: build_and_push_to_docker_hub
-   steps:
-
-   - name: Executing remote ssh commands to set env
-     uses: appleboy/ssh-action@master
-     with:
-       host: ${{ secrets.CLOUD_HOST }}
-       username: ${{ secrets.CLOUD_USER }}
-       port: ${{ secrets.CLOUD_PORT }}
-       key: ${{ secrets.SSH_KEY }}
-       passphrase: ${{ secrets.PASSPHRASE }}
-       script: |
-         export SECRET_KEY=${{ secrets.SECRET_KEY }}
-         export DEBUG=${{ secrets.DEBUG }}
-         export DJANGO_ALLOWED_HOSTS=${{ secrets.DJANGO_ALLOWED_HOSTS }}
-         export DEFAULT_FROM_EMAIL=${{ secrets.DEFAULT_FROM_EMAIL }}
-         export DB_ENGINE=${{ secrets.DB_ENGINE }}
-         export DB_NAME=${{ secrets.DB_NAME }}
-         export POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-         export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-         export DB_HOST=${{ secrets.DB_HOST }}
-         export DB_PORT=${{ secrets.DB_PORT }}
-   - name: Is docker install
-     uses: appleboy/ssh-action@master
-     with:
-       host: ${{ secrets.CLOUD_HOST }}
-       username: ${{ secrets.CLOUD_USER }}
-       port: ${{ secrets.CLOUD_PORT }}
-       key: ${{ secrets.SSH_KEY }}
-       passphrase: ${{ secrets.PASSPHRASE }}
-       script: |
-         if sudo service docker status  > /dev/null 2>&1
-         then
-             sudo apt-get update && sudo apt-get upgrade docker-ce -y
-         else
-             curl -fsSL https://get.docker.com -o get-docker.sh > /dev/null 2>&1
-             sh get-docker.sh
-         fi
-   - name: Compose up
-     uses: appleboy/ssh-action@master
-     with:
-       host: ${{ secrets.CLOUD_HOST }}
-       username: ${{ secrets.CLOUD_USER }}
-       port: ${{ secrets.CLOUD_PORT }}
-       key: ${{ secrets.SSH_KEY }}
-       passphrase: ${{ secrets.PASSPHRASE }}
-       script: |
-         sudo docker pull ${{ secrets.DOCKER_USERNAME }}/yamdb_final:latest
-         id=$(docker create ${{ secrets.DOCKER_USERNAME }}/yamdb_final:latest)
-         FILE=docker-compose.yaml
-         if [ -f "$FILE" ]
-         then
-             echo "$FILE exists and will removed"
-             rm $FILE
-         else
-             echo "$FILE does not exist"
-         fi
-         echo "Add new $FILE"
-         docker cp $id:/usr/src/web/$FILE $FILE
-         sudo docker rm -v $id
-         sudo docker stop $(sudo docker ps -a -q) > /dev/null 2>&1
-         sudo docker kill $(sudo docker ps -a -q) > /dev/null 2>&1
-         docker-compose up -d  --force-recreate
-   - name: Clean up
-     uses: appleboy/ssh-action@master
-     with:
-       host: ${{ secrets.CLOUD_HOST }}
-       username: ${{ secrets.CLOUD_USER }}
-       port: ${{ secrets.CLOUD_PORT }}
-       key: ${{ secrets.SSH_KEY }}
-       passphrase: ${{ secrets.PASSPHRASE }}
-       script: |
-         docker system prune -f > /dev/null 2>&1
-         docker volume prune -f > /dev/null 2>&1
-   - name: Prepare django
-     uses: appleboy/ssh-action@master
-     with:
-       host: ${{ secrets.CLOUD_HOST }}
-       username: ${{ secrets.CLOUD_USER }}
-       port: ${{ secrets.CLOUD_PORT }}
-       key: ${{ secrets.SSH_KEY }}
-       passphrase: ${{ secrets.PASSPHRASE }}
-       script: |
-         docker-compose exec -T web python3 manage.py collectstatic --noinput
-         docker-compose exec -T web python3 manage.py migrate --noinput
-         docker-compose exec -T web python3 manage.py loaddata /usr/src/web/fixture.json
+   deploy:
+    runs-on: ubuntu-latest
+    needs: build_and_push_to_docker_hub
+    steps:
+      - name: executing remote ssh commands to deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CLOUD_HOST }}
+          username: ${{ secrets.CLOUD_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          #passphrase: ${{ secrets.PASSPHRASE }}
+          script: |
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/yamdb
+            sudo docker-compose stop
+            sudo docker-compose rm web
+            touch .env
+            echo SECRET_KEY=${{ secrets.SECRET_KEY }} >> .env
+            echo DB_ENGINE=${{ secrets.DB_ENGINE }} >> .env
+            echo DB_NAME=${{ secrets.DB_NAME }} >> .env
+            echo POSTGRES_USER=${{ secrets.POSTGRES_USER }} >> .env
+            echo POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} >> .env
+            echo DB_HOST=${{ secrets.DB_HOST }} >> .env
+            echo DB_PORT=${{ secrets.DB_PORT }} >> .env
+            sudo docker-compose up -d 
   send_message:
     runs-on: ubuntu-latest
     needs: deploy
