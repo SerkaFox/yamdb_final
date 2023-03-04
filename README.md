@@ -9,72 +9,97 @@
 3. Автоматический деплой на боевой сервер,
 4. Отправка сообщения в телеграмм-бот в случае успеха.
 
-## Начало работы
+## Проверка и тесты работы сервера и сайта
+* Для использования панели администратора по адресу http://158.160.46.202/admin/ необходимо использовать логин root и пароль 785
+* К проекту по адресу http://158.160.46.202/redoc/ подключена документация API. В ней описаны шаблоны запросов к API и ответы. Для каждого запроса указаны уровни прав доступа - пользовательские роли, которым разрешён запрос.
 
-1. Клонируйте репозиторий на локальную машину.
+## Workflow
+* tests - Проверка кода на соответствие стандарту PEP8 (с помощью пакета flake8) и запуск pytest. Дальнейшие шаги выполнятся только если push был в ветку master или main.
+* build_and_push_to_docker_hub - Сборка и доставка докер-образов на Docker Hub
+* deploy - Автоматический деплой проекта на боевой сервер. Выполняется копирование файлов из репозитория на сервер:
+* send_message - Отправка уведомления в Telegram
+
+### Подготовка для запуска workflow
+Создайте и активируйте виртуальное окружение, обновите pip:
 ```
-git clone <адрес репозитория>
+python3 -m venv venv
+. venv/bin/activate
+python3 -m pip install --upgrade pip
 ```
-2. Для работы с проектом локально - установите вирутальное окружение и восстановите зависимости.
+Запустите автотесты:
 ```
-python -m venv venv
-pip install -r requirements.txt 
+pytest
+```
+Отредактируйте файл `nginx/default.conf` и в строке `server_name` впишите IP виртуальной машины (сервера). 
+Скопируйте подготовленные файлы `docker-compose.yaml` и `nginx/default.conf` из вашего проекта на сервер:
+
+Зайдите в репозиторий на локальной машине и отправьте файлы на сервер.
+
+```
+scp docker-compose.yaml <username>@<host>/home/<username>/docker-compose.yaml
+sudo mkdir nginx
+scp default.conf <username>@<host>/home/<username>/nginx/default.conf
+```
+В репозитории на Гитхабе добавьте данные в `Settings - Secrets - Actions secrets`:
+```
+DOCKER_USERNAME - имя пользователя в DockerHub
+DOCKER_PASSWORD - пароль пользователя в DockerHub
+CLOUD_HOST - ip-адрес сервера
+CLOUD_USER - пользователь
+SSH_KEY - приватный ssh-ключ (публичный должен быть на сервере)
+PASSPHRASE - кодовая фраза для ssh-ключа
+DB_ENGINE - django.db.backends.postgresql
+DB_HOST - db
+DB_PORT - 5432
+SECRET_KEY - секретный ключ приложения django (необходимо чтобы были экранированы или отсутствовали скобки)
+TELEGRAM_TO - id своего телеграм-аккаунта (можно узнать у @userinfobot, команда /start)
+TELEGRAM_TOKEN - токен бота (получить токен можно у @BotFather, /token, имя бота)
+DB_NAME - postgres (по умолчанию)
+POSTGRES_USER - postgres (по умолчанию)
+POSTGRES_PASSWORD - postgres (по умолчанию)
 ```
 
-### Подготовка удаленного сервера для развертывания приложения
+## Как запустить проект на сервере:
 
-Для работы с проектом на удаленном сервере должен быть установлен Docker и docker-compose.
-Эта команда скачает скрипт для установки докера:
+
+Установите Docker и Docker-compose:
 ```
-curl -fsSL https://get.docker.com -o get-docker.sh
+sudo apt install docker.io
+sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
 ```
-Эта команда запустит его:
+Проверьте корректность установки Docker-compose:
 ```
-sh get-docker.sh
+sudo  docker-compose --version
 ```
-Установка docker-compose:
+Создайте папку `nginx`:
 ```
-apt install docker-compose
+mkdir nginx
 ```
-Создайте папку проекта на удаленном сервере и скопируйте туда файлы docker-compose.yaml, Dockerfile, host.conf:
+### После успешного деплоя:
+Соберите статические файлы (статику):
 ```
-scp ./<FILENAME> <USER>@<HOST>:/home/<USER>/yamdb_final/
+docker-compose exec web python manage.py collectstatic --no-input
+```
+Примените миграции:
+```
+docker-compose exec web python manage.py makemigrations
+docker-compose exec web python manage.py migrate --noinput
+```
+Создайте суперпользователя:
+```
+docker-compose exec web python manage.py createsuperuser
+```
+или
+```
+docker-compose exec web python manage.py loaddata fixtures.json
 ```
 
-### Подготовка репозитория на GitHub
-
-Для использования Continuous Integration и Continuous Deployment необходимо в репозитории на GitHub прописать Secrets - переменные доступа к вашим сервисам.
-Переменые прописаны в workflows/yamdb_workflow.yaml
-
-* DOCKER_PASSWORD, DOCKER_USERNAME - для загрузки и скачивания образа с DockerHub 
-* USER, HOST, PASSPHRASE, SSH_KEY - для подключения к удаленному серверу 
-* TELEGRAM_TO, TELEGRAM_TOKEN - для отправки сообщений в Telegram
-
-### Развертывание приложения
-
-1. При пуше в ветку main приложение пройдет тесты, обновит образ на DockerHub и сделает деплой на сервер. Дальше необходимо подлкючиться к серверу.
-```
-ssh <USER>@<HOST>
-```
-2. Перейдите в запущенный контейнер приложения командой:
-```
-docker container exec -it <CONTAINER ID> bash
-```
-3. Внутри контейнера необходимо выполнить миграции и собрать статику приложения:
-```
-python manage.py collectstatic --no-input
-python manage.py migrate
-```
-4. Для использования панели администратора по адресу http://0.0.0.0/admin/ необходимо создать суперпользователя.
-```
-python manage.py createsuperuser.
-```
-5. К проекту по адресу http://0.0.0.0/redoc/ подключена документация API. В ней описаны шаблоны запросов к API и ответы. Для каждого запроса указаны уровни прав доступа - пользовательские роли, которым разрешён запрос.
 
 ## Технологии используемые в проекте
 Python, Django, Django REST Framework, PostgreSQL, Nginx, Docker, GitHub Actions
 
 ## Автор
 
--
+-Sergei Svitkin
 
